@@ -1,49 +1,128 @@
+// src/pages/AddUser.jsx
+
 "use client"
 
-import { useState } from "react"
-import { Button } from "./ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
-import { Textarea } from "./ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
-import { Send } from "lucide-react"
-import { Badge } from "./ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
+import { useState, useEffect } from "react"
+import { collection, getDocs, query, where } from "firebase/firestore"
+import { onAuthStateChanged } from "firebase/auth"
+import { db, auth } from "../firebase"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { Clock, Calendar, Send } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+
+// Patient = { id: string, name: string }
+// Session = { id: string, name: string, date?: { seconds: number }, config?: { scenariosPerEmotion?: number, complexityLevel?: number, allowedAttempts?: number } }
 
 export default function GameMonitoring() {
+  const [patients, setPatients] = useState([])
+  const [sessions, setSessions] = useState([])
   const [selectedPatient, setSelectedPatient] = useState("")
+  const [selectedSession, setSelectedSession] = useState("")
   const [notes, setNotes] = useState("")
   const [sessionNotes, setSessionNotes] = useState([])
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) return
+      const q = query(collection(db, "patients"), where("createdBy", "==", user.uid))
+      const snapshot = await getDocs(q)
+      const loaded = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      setPatients(loaded)
+    })
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      if (!selectedPatient) return
+      const q = query(collection(db, "sessions"), where("patientId", "==", selectedPatient))
+      const snapshot = await getDocs(q)
+      const loaded = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(session => session.patientId)
+      setSessions(loaded)
+      setSelectedSession("") // reset session selection when patient changes
+    }
+    fetchSessions()
+  }, [selectedPatient])
+
   const handleSendNote = () => {
     if (notes.trim() === "") return
-
     const now = new Date()
     const timestamp = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}`
-
     setSessionNotes([...sessionNotes, { text: notes, timestamp }])
     setNotes("")
   }
+
+  // Función para formatear la fecha de una sesión
+  const formatSessionDate = (seconds) => {
+    if (!seconds) return "";
+    return new Date(seconds * 1000).toLocaleDateString("es-MX", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <Card className="overflow-hidden">
         <CardHeader className="pb-0">
-          <div className="flex justify-between items-center">
-            <CardTitle>Sesión de Juego</CardTitle>
-            <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Seleccionar paciente" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="carlos">Carlos Rodríguez</SelectItem>
-                <SelectItem value="ana">Ana Martínez</SelectItem>
-                <SelectItem value="miguel">Miguel Sánchez</SelectItem>
-                <SelectItem value="laura">Laura Gómez</SelectItem>
-                <SelectItem value="daniel">Daniel López</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-center">
+              <CardTitle>Sesión de Juego</CardTitle>
+              <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Seleccionar paciente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.length === 0 ? (
+                    <SelectItem value="none" disabled>No hay pacientes</SelectItem>
+                  ) : (
+                    patients.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedPatient && (
+              <div className="flex justify-end">
+                <Select value={selectedSession} onValueChange={setSelectedSession}>
+                  <SelectTrigger className="w-[300px]">
+                    <SelectValue placeholder="Seleccionar sesión" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessions.length === 0 ? (
+                      <SelectItem value="none" disabled>No hay sesiones</SelectItem>
+                    ) : (
+                      sessions.map((session) => (
+                        <SelectItem key={session.id} value={session.id}>
+                          {session.name ? 
+                            `${session.name} - ${formatSessionDate(session.date?.seconds)}` : 
+                            (session.date?.seconds ? 
+                              formatSessionDate(session.date.seconds) : 
+                              "Sesión sin nombre ni fecha")}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardHeader>
+
         <CardContent className="p-4">
           <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-muted">
             <img
@@ -52,21 +131,31 @@ export default function GameMonitoring() {
               className="object-cover w-full h-full"
             />
             <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2 text-sm">
-              {selectedPatient
-                ? `Sesión activa: ${
-                    selectedPatient === "carlos"
-                      ? "Carlos Rodríguez"
-                      : selectedPatient === "ana"
-                        ? "Ana Martínez"
-                        : selectedPatient === "miguel"
-                          ? "Miguel Sánchez"
-                          : selectedPatient === "laura"
-                            ? "Laura Gómez"
-                            : "Daniel López"
-                  }`
-                : "Seleccione un paciente para iniciar la sesión"}
+              {selectedPatient && selectedSession 
+                ? `Sesión activa: ${patients.find(p => p.id === selectedPatient)?.name || "Paciente"} - ${sessions.find(s => s.id === selectedSession)?.name || "Sin nombre"}`
+                : "Seleccione un paciente y una sesión para iniciar"}
             </div>
           </div>
+
+          {selectedSession && (
+            <div className="space-y-2 mt-4">
+              {sessions
+                .filter((s) => s.id === selectedSession)
+                .map((s) => (
+                  <div key={s.id} className="space-y-1">
+                    <div className="mb-2">
+                      <Badge className="mr-1">{s.name || "Sin nombre"}</Badge>
+                      <Badge variant="outline">{formatSessionDate(s.date?.seconds) || "Sin fecha"}</Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge>Escenarios: {s.config?.scenariosPerEmotion ?? "-"}</Badge>
+                      <Badge>Complejidad: {s.config?.complexityLevel ?? "-"}%</Badge>
+                      <Badge>Intentos: {s.config?.allowedAttempts ?? "-"}</Badge>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
 
           <div className="mt-4">
             <Tabs defaultValue="stats">
@@ -93,68 +182,7 @@ export default function GameMonitoring() {
               </TabsContent>
 
               <TabsContent value="attempts" className="pt-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                      <span className="font-medium">Feliz</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Badge variant="outline" className="bg-green-50">
-                        Intentos: 5
-                      </Badge>
-                      <Badge variant="outline" className="bg-green-50">
-                        Aciertos: 4
-                      </Badge>
-                      <Badge variant="outline" className="bg-green-50">
-                        Promedio: 1.2
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                      <span className="font-medium">Triste</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Badge variant="outline" className="bg-blue-50">
-                        Intentos: 8
-                      </Badge>
-                      <Badge variant="outline" className="bg-blue-50">
-                        Aciertos: 5
-                      </Badge>
-                      <Badge variant="outline" className="bg-blue-50">
-                        Promedio: 1.6
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                      <span className="font-medium">Enojado</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Badge variant="outline" className="bg-red-50">
-                        Intentos: 6
-                      </Badge>
-                      <Badge variant="outline" className="bg-red-50">
-                        Aciertos: 3
-                      </Badge>
-                      <Badge variant="outline" className="bg-red-50">
-                        Promedio: 2.0
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="mt-2 pt-2 border-t">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Total de intentos:</span>
-                      <Badge>19</Badge>
-                    </div>
-                  </div>
-                </div>
+                <div className="text-sm text-muted-foreground">Intentos por emoción (mock)</div>
               </TabsContent>
             </Tabs>
           </div>
@@ -164,6 +192,11 @@ export default function GameMonitoring() {
       <Card>
         <CardHeader>
           <CardTitle>Notas y Sugerencias</CardTitle>
+          {selectedSession && (
+            <CardDescription>
+              {sessions.find(s => s.id === selectedSession)?.name || "Sesión sin nombre"}
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="border rounded-lg p-4 h-[300px] overflow-y-auto space-y-3">
@@ -187,9 +220,9 @@ export default function GameMonitoring() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="min-h-[100px]"
-              disabled={!selectedPatient}
+              disabled={!selectedSession}
             />
-            <Button onClick={handleSendNote} className="w-full" disabled={!selectedPatient || notes.trim() === ""}>
+            <Button onClick={handleSendNote} className="w-full" disabled={!selectedSession || notes.trim() === ""}>
               <Send className="mr-2 h-4 w-4" />
               Enviar Nota
             </Button>
@@ -199,4 +232,3 @@ export default function GameMonitoring() {
     </div>
   )
 }
-

@@ -6,6 +6,7 @@ import MonitoringPage from "./pages/MonitoringPage";
 import ConfigurationPage from "./pages/ConfigurationPage";
 import AddPatient from "./pages/AddPatient"; // 👈 Agregado
 import ProtectedRoute from "./components/ProtectedRoute";
+import AddUser from "./pages/AddUser";
 
 
 function App() {
@@ -46,6 +47,12 @@ function App() {
     </ProtectedRoute>
   }
 />
+<Route path="/add-user" element={    <ProtectedRoute>
+  <AddUser />
+            
+              </ProtectedRoute>
+            } />
+
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

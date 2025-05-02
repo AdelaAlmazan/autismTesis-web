@@ -54,7 +54,7 @@ export default function DashboardHeader() {
                   }`}
                   onClick={() => setOpen(false)}
                 >
-                  Configuración
+                  Sesiones 
                 </Link>
               </nav>
             </SheetContent>
@@ -86,7 +86,7 @@ export default function DashboardHeader() {
               location.pathname === "/configuration" ? "bg-primary/10 text-primary" : ""
             }`}
           >
-            Configuración
+            Sesiones
           </Link>
         </nav>
         <Button variant="ghost" size="icon" onClick={handleLogout}>
