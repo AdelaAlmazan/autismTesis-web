@@ -1,7 +1,19 @@
 import { useState, useEffect, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { auth, db } from "../firebase"
-import { addDoc, collection } from "firebase/firestore"
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import {
+  addDoc,
+  collection,
+  getDoc,
+  getDocs,
+  doc,
+} from "firebase/firestore"
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage"
 import { onAuthStateChanged } from "firebase/auth"
 
 import {
@@ -26,12 +38,42 @@ export default function AddPatient() {
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [user, setUser] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [therapists, setTherapists] = useState([])
+  const [assignedTherapist, setAssignedTherapist] = useState("")
+  const [assignedTherapistName, setAssignedTherapistName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
+  const navigate = useNavigate()
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser)
+      if (currentUser) {
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid))
+        if (userDoc.exists()) {
+          const data = userDoc.data()
+          console.log("Usuario logueado:", currentUser.uid, "Rol:", data.role)
+
+          // ⚠️ Forzar modo admin temporalmente
+          const isUserAdmin = true // ← Cambia esto por: data.role === "admin" al terminar las pruebas
+          setIsAdmin(isUserAdmin)
+
+          if (isUserAdmin) {
+            const snapshot = await getDocs(collection(db, "users"))
+            const userList = snapshot.docs.map((doc) => ({
+              uid: doc.id,
+              name: doc.data().name || doc.data().email || "Usuario sin nombre",
+            }))
+            setTherapists(userList)
+          } else {
+            setAssignedTherapist(currentUser.uid)
+            setAssignedTherapistName(data.name || "Usuario actual")
+          }
+        }
+      }
     })
+
     return () => unsubscribe()
   }, [])
 
@@ -62,6 +104,8 @@ export default function AddPatient() {
 
     const age = calculateAge(birthDate)
     if (age < 0) return alert("La fecha de nacimiento no puede ser en el futuro.")
+    if (isAdmin && !assignedTherapist)
+      return alert("Selecciona un terapeuta para asignar al paciente.")
 
     try {
       setIsLoading(true)
@@ -83,6 +127,7 @@ export default function AddPatient() {
         autismLevel,
         photoURL,
         createdBy: user.uid,
+        assignedTo: isAdmin ? assignedTherapist : user.uid,
         createdAt: new Date().toISOString(),
       })
 
@@ -95,6 +140,7 @@ export default function AddPatient() {
       setAutismLevel("nivel 1")
       setPhotoFile(null)
       setPhotoPreview(null)
+      setAssignedTherapist("")
     } catch (error) {
       alert("❌ Error al guardar: " + error.message)
     } finally {
@@ -120,6 +166,7 @@ export default function AddPatient() {
         <CardTitle>Alta de Paciente</CardTitle>
         <CardDescription>Formulario con diseño tipo credencial</CardDescription>
       </CardHeader>
+
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-6">
           <div className="w-full md:w-1/3 flex flex-col items-center gap-4">
@@ -149,6 +196,7 @@ export default function AddPatient() {
               <Label>Nombre completo</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
+
             <div>
               <Label>Fecha de nacimiento</Label>
               <Input
@@ -165,12 +213,20 @@ export default function AddPatient() {
 
             <div>
               <Label>Sensibilidad sensorial</Label>
-              <Textarea value={sensitivity} onChange={(e) => setSensitivity(e.target.value)} />
+              <Textarea
+                value={sensitivity}
+                onChange={(e) => setSensitivity(e.target.value)}
+              />
             </div>
+
             <div>
               <Label>Intereses</Label>
-              <Textarea value={interests} onChange={(e) => setInterests(e.target.value)} />
+              <Textarea
+                value={interests}
+                onChange={(e) => setInterests(e.target.value)}
+              />
             </div>
+
             <div>
               <Label>Nivel de autismo</Label>
               <select
@@ -184,12 +240,45 @@ export default function AddPatient() {
               </select>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Guardando..." : "Registrar Paciente"}
-            </Button>
+            {isAdmin ? (
+              <div>
+                <Label>Asignar a terapeuta</Label>
+                <select
+                  value={assignedTherapist}
+                  onChange={(e) => setAssignedTherapist(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md p-2"
+                  required
+                >
+                  <option value="">Selecciona un usuario</option>
+                  {therapists.map((t) => (
+                    <option key={t.uid} value={t.uid}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Terapeuta asignado: <strong>{assignedTherapistName}</strong>
+              </p>
+            )}
+
+            <div className="flex justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate(-1)}
+              >
+                ⬅ Regresar
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Guardando..." : "Registrar Paciente"}
+              </Button>
+            </div>
           </div>
         </form>
       </CardContent>
+
       <CardFooter className="text-center justify-center text-sm text-muted-foreground">
         EmoBosque · Registro pacientes
       </CardFooter>

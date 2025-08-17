@@ -44,7 +44,7 @@ export default function SessionManagement() {
   const [selectedPatient, setSelectedPatient] = useState("")
   const [patientInfo, setPatientInfo] = useState(null)
 
-  // Estado para el historial de sesiones
+  // Estado para epul historial de sesiones
   const [sessionHistory, setSessionHistory] = useState([])
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState(null)

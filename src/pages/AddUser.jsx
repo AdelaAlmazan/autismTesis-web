@@ -1,10 +1,14 @@
-// src/pages/AddUser.jsx
-
 import { useState } from "react"
 import { doc, setDoc } from "firebase/firestore"
 import { createUserWithEmailAndPassword, getAuth } from "firebase/auth"
 import { db } from "../firebase"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/card"
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "../components/ui/card"
 import { Input } from "../components/ui/input"
 import { Button } from "../components/ui/button"
 import { Label } from "../components/ui/label"
@@ -52,15 +56,28 @@ export default function AddUser() {
         <CardContent className="space-y-4">
           <div>
             <Label>Nombre</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre completo" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nombre completo"
+            />
           </div>
           <div>
             <Label>Email</Label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="correo@ejemplo.com" />
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="correo@ejemplo.com"
+            />
           </div>
           <div>
             <Label>Contraseña</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Contraseña"
+            />
           </div>
           <div>
             <Label>Rol</Label>
@@ -73,7 +90,10 @@ export default function AddUser() {
               <option value="admin">Administrador</option>
             </select>
           </div>
-          <div className="pt-4">
+          <div className="pt-4 flex justify-between gap-2">
+            <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+              ⬅ Regresar
+            </Button>
             <Button onClick={handleAddUser}>Guardar Usuario</Button>
           </div>
         </CardContent>
